@@ -20,8 +20,106 @@ function Alert({ msg, type }) {
   return <div className={`alert alert-${type}`}>{msg}</div>
 }
 
+// ─── Set Password Modal (shown after clicking invite link) ───
+function SetPasswordModal({ onDone }) {
+  const [pw, setPw] = useState('')
+  const [pw2, setPw2] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState('')
+
+  const save = async () => {
+    if (pw.length < 8) { setErr('Password must be at least 8 characters.'); return }
+    if (pw !== pw2) { setErr('Passwords do not match.'); return }
+    setSaving(true)
+    const { error } = await supabase.auth.updateUser({ password: pw })
+    setSaving(false)
+    if (error) { setErr(error.message); return }
+    onDone()
+  }
+
+  return (
+    <div className="modal-bg">
+      <div className="modal">
+        <div style={{ textAlign: 'center', marginBottom: 20 }}>
+          <div style={{
+            width: 52, height: 52, borderRadius: '50%', background: 'var(--green)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: '#fff', fontWeight: 700, fontSize: 20, margin: '0 auto 12px'
+          }}>EK</div>
+          <h2 style={{ fontSize: 17 }}>Set your admin password</h2>
+          <p style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>
+            Welcome to EK Pickleball Championship admin.
+          </p>
+        </div>
+        {err && <Alert msg={err} type="error" />}
+        <div className="form-group">
+          <label>New password</label>
+          <input type="password" placeholder="At least 8 characters" value={pw} onChange={e => setPw(e.target.value)} />
+        </div>
+        <div className="form-group">
+          <label>Confirm password</label>
+          <input type="password" placeholder="Repeat password" value={pw2} onChange={e => setPw2(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && save()} />
+        </div>
+        <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', marginTop: 4 }} onClick={save} disabled={saving}>
+          {saving ? <span className="spinner"></span> : 'Set password & continue'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ─── Login Modal ─────────────────────────────────────────────
+function LoginModal({ onClose, onLogin }) {
+  const [email, setEmail] = useState('')
+  const [pw, setPw] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState('')
+
+  const login = async () => {
+    if (!email || !pw) { setErr('Enter your email and password.'); return }
+    setSaving(true); setErr('')
+    const { error } = await supabase.auth.signInWithPassword({ email, password: pw })
+    setSaving(false)
+    if (error) { setErr('Incorrect email or password.'); return }
+    onLogin()
+  }
+
+  return (
+    <div className="modal-bg" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal">
+        <div style={{ textAlign: 'center', marginBottom: 20 }}>
+          <div style={{
+            width: 52, height: 52, borderRadius: '50%', background: 'var(--green)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: '#fff', fontWeight: 700, fontSize: 20, margin: '0 auto 12px'
+          }}>EK</div>
+          <h2 style={{ fontSize: 17 }}>Admin sign in</h2>
+          <p style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>East Kilbride Pickleball Championship</p>
+        </div>
+        {err && <Alert msg={err} type="error" />}
+        <div className="form-group">
+          <label>Email</label>
+          <input type="email" placeholder="your@email.com" value={email} onChange={e => setEmail(e.target.value)} />
+        </div>
+        <div className="form-group">
+          <label>Password</label>
+          <input type="password" placeholder="••••••••" value={pw} onChange={e => setPw(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && login()} />
+        </div>
+        <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', marginTop: 4 }} onClick={login} disabled={saving}>
+          {saving ? <span className="spinner"></span> : 'Sign in'}
+        </button>
+        <button className="btn" style={{ width: '100%', justifyContent: 'center', marginTop: 8 }} onClick={onClose}>
+          Cancel — view as public
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ─── Header ─────────────────────────────────────────────────
-function Header() {
+function Header({ user, onLoginClick, onLogout }) {
   return (
     <header style={{
       background: '#fff', borderBottom: '0.5px solid var(--border)',
@@ -29,14 +127,28 @@ function Header() {
     }}>
       <div style={{ maxWidth: 900, margin: '0 auto', display: 'flex', alignItems: 'center', gap: 14, padding: '14px 0' }}>
         <div style={{
-          width: 44, height: 44, borderRadius: '50%',
-          background: 'var(--green)', display: 'flex',
-          alignItems: 'center', justifyContent: 'center',
+          width: 44, height: 44, borderRadius: '50%', background: 'var(--green)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
           color: '#fff', fontWeight: 600, fontSize: 15, flexShrink: 0
         }}>EK</div>
-        <div>
+        <div style={{ flex: 1 }}>
           <h1 style={{ fontSize: 18 }}>East Kilbride Pickleball Championship</h1>
-          <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 1 }}>Match recording & fixtures — share this page with the group</p>
+          <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 1 }}>Fixtures, results &amp; leaderboard</p>
+        </div>
+        <div style={{ flexShrink: 0 }}>
+          {user
+            ? <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 12, color: 'var(--muted)' }}>
+                  <span style={{
+                    display: 'inline-block', width: 7, height: 7, borderRadius: '50%',
+                    background: 'var(--green)', marginRight: 5
+                  }}></span>
+                  Admin
+                </span>
+                <button className="btn btn-sm" onClick={onLogout}>Sign out</button>
+              </div>
+            : <button className="btn btn-sm" onClick={onLoginClick}>Admin sign in</button>
+          }
         </div>
       </div>
     </header>
@@ -47,9 +159,7 @@ function Header() {
 function FixturesTab({ fixtures, players }) {
   const [typeF, setTypeF] = useState('')
   const [statusF, setStatusF] = useState('')
-
   const playerMap = Object.fromEntries(players.map(p => [p.id, p]))
-
   const filtered = fixtures
     .filter(f => (!typeF || f.match_type === typeF) && (!statusF || f.status === statusF))
     .sort((a, b) => a.match_date > b.match_date ? 1 : -1)
@@ -70,9 +180,7 @@ function FixturesTab({ fixtures, players }) {
         {filtered.length === 0
           ? <div className="empty">No fixtures found.</div>
           : <table>
-              <thead><tr>
-                <th>Date</th><th>Type</th><th>Match</th><th>Score</th><th>Status</th>
-              </tr></thead>
+              <thead><tr><th>Date</th><th>Type</th><th>Match</th><th>Score</th><th>Status</th></tr></thead>
               <tbody>
                 {filtered.map(f => {
                   const p1a = playerMap[f.p1a], p1b = playerMap[f.p1b]
@@ -115,40 +223,29 @@ function ScoreModal({ fixture, players, onSave, onClose }) {
   const [sets, setSets] = useState([{ p1: '', p2: '' }])
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
-
   const playerMap = Object.fromEntries(players.map(p => [p.id, p]))
   const t1 = teamLabel(playerMap[fixture.p1a], playerMap[fixture.p1b])
   const t2 = teamLabel(playerMap[fixture.p2a], playerMap[fixture.p2b])
 
   const updateSet = (i, side, val) => {
-    const next = [...sets]
-    next[i] = { ...next[i], [side]: val }
-    setSets(next)
+    const next = [...sets]; next[i] = { ...next[i], [side]: val }; setSets(next)
   }
 
   const save = async () => {
     setSaving(true); setErr('')
     try {
-      // Delete old results for this fixture
       await supabase.from('results').delete().eq('fixture_id', fixture.id)
-      // Insert new sets
       const rows = sets.map((s, i) => ({
-        fixture_id: fixture.id,
-        set_number: i + 1,
-        score_p1: parseInt(s.p1) || 0,
-        score_p2: parseInt(s.p2) || 0
+        fixture_id: fixture.id, set_number: i + 1,
+        score_p1: parseInt(s.p1) || 0, score_p2: parseInt(s.p2) || 0
       }))
       const { error: rErr } = await supabase.from('results').insert(rows)
       if (rErr) throw rErr
-      // Update fixture status
       const { error: fErr } = await supabase.from('fixtures').update({ status: 'Played' }).eq('id', fixture.id)
       if (fErr) throw fErr
       onSave()
-    } catch (e) {
-      setErr(e.message)
-    } finally {
-      setSaving(false)
-    }
+    } catch (e) { setErr(e.message) }
+    finally { setSaving(false) }
   }
 
   return (
@@ -188,7 +285,7 @@ function ScoreModal({ fixture, players, onSave, onClose }) {
   )
 }
 
-// ─── Record Tab ──────────────────────────────────────────────
+// ─── Record Tab (admin only) ──────────────────────────────────
 function RecordTab({ fixtures, players, onRefresh }) {
   const [type, setType] = useState('Singles')
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
@@ -216,6 +313,7 @@ function RecordTab({ fixtures, players, onRefresh }) {
     setSaving(false)
     if (error) { setMsg({ text: error.message, type: 'error' }); return }
     setMsg({ text: 'Fixture added!', type: 'success' })
+    setP1a(''); setP1b(''); setP2a(''); setP2b(''); setVenue('')
     onRefresh()
   }
 
@@ -239,7 +337,7 @@ function RecordTab({ fixtures, players, onRefresh }) {
             <input type="date" value={date} onChange={e => setDate(e.target.value)} />
           </div>
         </div>
-        <div className={`form-row ${type === 'Singles' ? 'cols-2' : 'cols-2'}`}>
+        <div className="form-row cols-2">
           <div className="form-group">
             <label>{type === 'Singles' ? 'Player 1' : 'Team 1 – Player A'}</label>
             <select value={p1a} onChange={e => setP1a(e.target.value)}><option value="">Select…</option>{opts}</select>
@@ -286,9 +384,7 @@ function RecordTab({ fixtures, players, onRefresh }) {
                       <td>{d}</td>
                       <td><span className={`badge badge-${f.match_type.toLowerCase()}`}>{f.match_type}</span></td>
                       <td>{t1} <span className="vs">vs</span> {t2}</td>
-                      <td>
-                        <button className="btn btn-sm btn-primary" onClick={() => setScoreFixture(f)}>Enter score</button>
-                      </td>
+                      <td><button className="btn btn-sm btn-primary" onClick={() => setScoreFixture(f)}>Enter score</button></td>
                     </tr>
                   )
                 })}
@@ -299,8 +395,7 @@ function RecordTab({ fixtures, players, onRefresh }) {
 
       {scoreFixture && (
         <ScoreModal
-          fixture={scoreFixture}
-          players={players}
+          fixture={scoreFixture} players={players}
           onSave={() => { setScoreFixture(null); onRefresh() }}
           onClose={() => setScoreFixture(null)}
         />
@@ -309,7 +404,7 @@ function RecordTab({ fixtures, players, onRefresh }) {
   )
 }
 
-// ─── Players Tab ─────────────────────────────────────────────
+// ─── Players Tab (admin only) ─────────────────────────────────
 function PlayersTab({ players, onRefresh }) {
   const [first, setFirst] = useState('')
   const [last, setLast] = useState('')
@@ -387,7 +482,6 @@ function PlayersTab({ players, onRefresh }) {
 function LeaderboardTab({ fixtures, players }) {
   const [typeF, setTypeF] = useState('')
   const medals = ['🥇', '🥈', '🥉']
-
   const played = fixtures.filter(f => f.status === 'Played' && (!typeF || f.match_type === typeF))
   const totals = Object.fromEntries(players.map(p => [p.id, { id: p.id, name: `${p.first_name} ${p.last_name}`, w: 0, l: 0, played: 0 }]))
 
@@ -400,31 +494,27 @@ function LeaderboardTab({ fixtures, players }) {
     losers.forEach(id =>  { if (totals[id]) { totals[id].l++; totals[id].played++ } })
   })
 
-  const sorted = Object.values(totals).filter(x => x.played > 0).sort((a, b) => b.w - a.w || (b.w / (b.played || 1)) - (a.w / (a.played || 1)))
-
-  const allPlayed = fixtures.filter(f => f.status === 'Played').length
-  const scheduled = fixtures.filter(f => f.status === 'Scheduled').length
+  const sorted = Object.values(totals).filter(x => x.played > 0)
+    .sort((a, b) => b.w - a.w || (b.w / (b.played || 1)) - (a.w / (a.played || 1)))
 
   return (
     <>
       <div className="stat-grid">
         <div className="stat-card"><div className="num">{fixtures.length}</div><div className="lbl">Total fixtures</div></div>
-        <div className="stat-card"><div className="num">{allPlayed}</div><div className="lbl">Matches played</div></div>
-        <div className="stat-card"><div className="num">{scheduled}</div><div className="lbl">Upcoming</div></div>
+        <div className="stat-card"><div className="num">{fixtures.filter(f => f.status === 'Played').length}</div><div className="lbl">Matches played</div></div>
+        <div className="stat-card"><div className="num">{fixtures.filter(f => f.status === 'Scheduled').length}</div><div className="lbl">Upcoming</div></div>
         <div className="stat-card"><div className="num">{players.length}</div><div className="lbl">Players</div></div>
       </div>
-
       <div className="filter-bar">
         <select value={typeF} onChange={e => setTypeF(e.target.value)}>
           <option value="">All types</option>
           <option>Singles</option><option>Doubles</option><option>Mixed</option>
         </select>
       </div>
-
       <div className="card">
         <h2 style={{ marginBottom: '1rem' }}>Player standings</h2>
         {sorted.length === 0
-          ? <div className="empty">No results yet.</div>
+          ? <div className="empty">No results recorded yet.</div>
           : <table>
               <thead><tr><th>Rank</th><th>Player</th><th>Played</th><th>Won</th><th>Lost</th><th>Win %</th></tr></thead>
               <tbody>
@@ -448,10 +538,36 @@ function LeaderboardTab({ fixtures, players }) {
 
 // ─── Main App ────────────────────────────────────────────────
 export default function Home() {
+  const [user, setUser] = useState(null)
+  const [authReady, setAuthReady] = useState(false)
+  const [needsPassword, setNeedsPassword] = useState(false)
+  const [showLogin, setShowLogin] = useState(false)
   const [tab, setTab] = useState('fixtures')
   const [players, setPlayers] = useState([])
   const [fixtures, setFixtures] = useState([])
   const [loading, setLoading] = useState(true)
+
+  // Handle Supabase auth — including invite token in URL hash
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        setUser(session.user)
+        if (typeof window !== 'undefined') {
+          const hash = window.location.hash
+          if (hash.includes('type=invite') || hash.includes('type=recovery')) {
+            setNeedsPassword(true)
+          }
+          window.history.replaceState(null, '', window.location.pathname)
+        }
+      }
+      setAuthReady(true)
+    })
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null)
+    })
+    return () => subscription.unsubscribe()
+  }, [])
 
   const fetchAll = useCallback(async () => {
     setLoading(true)
@@ -460,26 +576,39 @@ export default function Home() {
       supabase.from('fixtures').select('*').order('match_date'),
       supabase.from('results').select('*').order('set_number')
     ])
-
-    // Attach sets to fixtures
     const fxWithSets = (fx || []).map(f => ({
       ...f,
       sets: (rs || []).filter(r => r.fixture_id === f.id).map(r => ({ p1: r.score_p1, p2: r.score_p2 }))
     }))
-
     setPlayers(pl || [])
     setFixtures(fxWithSets)
     setLoading(false)
   }, [])
 
-  useEffect(() => { fetchAll() }, [fetchAll])
+  useEffect(() => { if (authReady) fetchAll() }, [authReady, fetchAll])
 
-  const tabs = [
-    { id: 'fixtures', label: 'Fixtures & Results' },
-    { id: 'record', label: 'Record match' },
-    { id: 'players', label: 'Players' },
+  const logout = async () => {
+    await supabase.auth.signOut()
+    setUser(null)
+    setTab('fixtures')
+  }
+
+  // Public tabs always visible; admin tabs only when signed in
+  const publicTabs = [
+    { id: 'fixtures',    label: 'Fixtures & Results' },
     { id: 'leaderboard', label: 'Leaderboard' },
   ]
+  const adminTabs = [
+    { id: 'record',  label: 'Record match' },
+    { id: 'players', label: 'Players' },
+  ]
+  const tabs = user ? [...publicTabs, ...adminTabs] : publicTabs
+
+  useEffect(() => {
+    if (!user && (tab === 'record' || tab === 'players')) setTab('fixtures')
+  }, [user, tab])
+
+  if (!authReady) return null
 
   return (
     <>
@@ -489,7 +618,7 @@ export default function Home() {
         <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏓</text></svg>" />
       </Head>
 
-      <Header />
+      <Header user={user} onLoginClick={() => setShowLogin(true)} onLogout={logout} />
 
       <main style={{ maxWidth: 900, margin: '0 auto', padding: '0 1.25rem 2rem' }}>
         <div className="tab-bar">
@@ -503,12 +632,23 @@ export default function Home() {
         {loading
           ? <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--muted)' }}><span className="spinner"></span></div>
           : tab === 'fixtures'    ? <FixturesTab fixtures={fixtures} players={players} />
+          : tab === 'leaderboard' ? <LeaderboardTab fixtures={fixtures} players={players} />
           : tab === 'record'      ? <RecordTab fixtures={fixtures} players={players} onRefresh={fetchAll} />
           : tab === 'players'     ? <PlayersTab players={players} onRefresh={fetchAll} />
-          : tab === 'leaderboard' ? <LeaderboardTab fixtures={fixtures} players={players} />
           : null
         }
       </main>
+
+      {showLogin && (
+        <LoginModal
+          onClose={() => setShowLogin(false)}
+          onLogin={() => setShowLogin(false)}
+        />
+      )}
+
+      {needsPassword && (
+        <SetPasswordModal onDone={() => setNeedsPassword(false)} />
+      )}
     </>
   )
 }
