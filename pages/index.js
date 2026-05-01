@@ -6,6 +6,18 @@ import Head from 'next/head'
 const pName = (p) => p ? `${p.first_name} ${p.last_name}` : '?'
 const teamLabel = (pa, pb) => pb ? `${pName(pa)} / ${pName(pb)}` : pName(pa)
 
+const MATCH_TYPES = [
+  "Men's Singles",
+  "Women's Singles",
+  "Men's Doubles",
+  "Women's Doubles",
+  "Mixed Doubles",
+  "Hybrid",
+]
+
+const IS_DOUBLES = (t) => ["Men's Doubles", "Women's Doubles", "Mixed Doubles", "Hybrid"].includes(t)
+const typeToBadge = (t) => t.toLowerCase().replace(/[^a-z]+/g, '-').replace(/-$/, '')
+
 function setWinner(sets) {
   if (!sets || sets.length === 0) return null
   let w1 = 0, w2 = 0
@@ -20,7 +32,7 @@ function Alert({ msg, type }) {
   return <div className={`alert alert-${type}`}>{msg}</div>
 }
 
-// ─── Set Password Modal (shown after clicking invite link) ───
+// ─── Set Password Modal ───────────────────────────────────────
 function SetPasswordModal({ onDone }) {
   const [pw, setPw] = useState('')
   const [pw2, setPw2] = useState('')
@@ -47,9 +59,7 @@ function SetPasswordModal({ onDone }) {
             color: '#fff', fontWeight: 700, fontSize: 20, margin: '0 auto 12px'
           }}>EK</div>
           <h2 style={{ fontSize: 17 }}>Set your admin password</h2>
-          <p style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>
-            Welcome to EK Pickleball Championship admin.
-          </p>
+          <p style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>Welcome to EK Pickleball Championship admin.</p>
         </div>
         {err && <Alert msg={err} type="error" />}
         <div className="form-group">
@@ -121,10 +131,7 @@ function LoginModal({ onClose, onLogin }) {
 // ─── Header ─────────────────────────────────────────────────
 function Header({ user, onLoginClick, onLogout }) {
   return (
-    <header style={{
-      background: '#fff', borderBottom: '0.5px solid var(--border)',
-      padding: '0 1.5rem', marginBottom: '1.5rem'
-    }}>
+    <header style={{ background: '#fff', borderBottom: '0.5px solid var(--border)', padding: '0 1.5rem', marginBottom: '1.5rem' }}>
       <div style={{ maxWidth: 900, margin: '0 auto', display: 'flex', alignItems: 'center', gap: 14, padding: '14px 0' }}>
         <div style={{
           width: 44, height: 44, borderRadius: '50%', background: 'var(--green)',
@@ -139,10 +146,7 @@ function Header({ user, onLoginClick, onLogout }) {
           {user
             ? <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <span style={{ fontSize: 12, color: 'var(--muted)' }}>
-                  <span style={{
-                    display: 'inline-block', width: 7, height: 7, borderRadius: '50%',
-                    background: 'var(--green)', marginRight: 5
-                  }}></span>
+                  <span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', background: 'var(--green)', marginRight: 5 }}></span>
                   Admin
                 </span>
                 <button className="btn btn-sm" onClick={onLogout}>Sign out</button>
@@ -169,7 +173,7 @@ function FixturesTab({ fixtures, players }) {
       <div className="filter-bar">
         <select value={typeF} onChange={e => setTypeF(e.target.value)}>
           <option value="">All types</option>
-          <option>Singles</option><option>Doubles</option><option>Mixed</option>
+          {MATCH_TYPES.map(t => <option key={t}>{t}</option>)}
         </select>
         <select value={statusF} onChange={e => setStatusF(e.target.value)}>
           <option value="">All statuses</option>
@@ -191,7 +195,7 @@ function FixturesTab({ fixtures, players }) {
                   return (
                     <tr key={f.id}>
                       <td style={{ whiteSpace: 'nowrap' }}>{d}</td>
-                      <td><span className={`badge badge-${f.match_type.toLowerCase()}`}>{f.match_type}</span></td>
+                      <td><span className={`badge badge-${typeToBadge(f.match_type)}`}>{f.match_type}</span></td>
                       <td>
                         <span style={{ fontWeight: win === 'team1' ? 600 : 400 }}>{t1}</span>
                         <span className="vs">vs</span>
@@ -287,7 +291,7 @@ function ScoreModal({ fixture, players, onSave, onClose }) {
 
 // ─── Record Tab (admin only) ──────────────────────────────────
 function RecordTab({ fixtures, players, onRefresh }) {
-  const [type, setType] = useState('Singles')
+  const [type, setType] = useState("Men's Singles")
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
   const [venue, setVenue] = useState('')
   const [p1a, setP1a] = useState('')
@@ -306,8 +310,8 @@ function RecordTab({ fixtures, players, onRefresh }) {
     setSaving(true); setMsg(null)
     const row = {
       match_type: type, match_date: date, venue: venue || null, status: 'Scheduled',
-      p1a, p1b: type !== 'Singles' ? p1b : null,
-      p2a, p2b: type !== 'Singles' ? p2b : null
+      p1a, p1b: IS_DOUBLES(type) ? p1b : null,
+      p2a, p2b: IS_DOUBLES(type) ? p2b : null
     }
     const { error } = await supabase.from('fixtures').insert(row)
     setSaving(false)
@@ -329,7 +333,7 @@ function RecordTab({ fixtures, players, onRefresh }) {
           <div className="form-group">
             <label>Match type</label>
             <select value={type} onChange={e => setType(e.target.value)}>
-              <option>Singles</option><option>Doubles</option><option>Mixed</option>
+              {MATCH_TYPES.map(t => <option key={t}>{t}</option>)}
             </select>
           </div>
           <div className="form-group">
@@ -339,20 +343,20 @@ function RecordTab({ fixtures, players, onRefresh }) {
         </div>
         <div className="form-row cols-2">
           <div className="form-group">
-            <label>{type === 'Singles' ? 'Player 1' : 'Team 1 – Player A'}</label>
+            <label>{IS_DOUBLES(type) ? 'Team 1 – Player A' : 'Player 1'}</label>
             <select value={p1a} onChange={e => setP1a(e.target.value)}><option value="">Select…</option>{opts}</select>
           </div>
-          {type !== 'Singles' && (
+          {IS_DOUBLES(type) && (
             <div className="form-group">
               <label>Team 1 – Player B</label>
               <select value={p1b} onChange={e => setP1b(e.target.value)}><option value="">Select…</option>{opts}</select>
             </div>
           )}
           <div className="form-group">
-            <label>{type === 'Singles' ? 'Player 2' : 'Team 2 – Player A'}</label>
+            <label>{IS_DOUBLES(type) ? 'Team 2 – Player A' : 'Player 2'}</label>
             <select value={p2a} onChange={e => setP2a(e.target.value)}><option value="">Select…</option>{opts}</select>
           </div>
-          {type !== 'Singles' && (
+          {IS_DOUBLES(type) && (
             <div className="form-group">
               <label>Team 2 – Player B</label>
               <select value={p2b} onChange={e => setP2b(e.target.value)}><option value="">Select…</option>{opts}</select>
@@ -382,7 +386,7 @@ function RecordTab({ fixtures, players, onRefresh }) {
                   return (
                     <tr key={f.id}>
                       <td>{d}</td>
-                      <td><span className={`badge badge-${f.match_type.toLowerCase()}`}>{f.match_type}</span></td>
+                      <td><span className={`badge badge-${typeToBadge(f.match_type)}`}>{f.match_type}</span></td>
                       <td>{t1} <span className="vs">vs</span> {t2}</td>
                       <td><button className="btn btn-sm btn-primary" onClick={() => setScoreFixture(f)}>Enter score</button></td>
                     </tr>
@@ -404,8 +408,8 @@ function RecordTab({ fixtures, players, onRefresh }) {
   )
 }
 
-// ─── Players Tab (admin only) ─────────────────────────────────
-function PlayersTab({ players, onRefresh }) {
+// ─── Players Tab (public view, admin controls) ────────────────
+function PlayersTab({ players, onRefresh, user }) {
   const [first, setFirst] = useState('')
   const [last, setLast] = useState('')
   const [skill, setSkill] = useState('Intermediate')
@@ -431,43 +435,53 @@ function PlayersTab({ players, onRefresh }) {
 
   return (
     <>
-      <div className="card" style={{ marginBottom: '1rem' }}>
-        <h2 style={{ marginBottom: '1rem' }}>Add player</h2>
-        {msg && <Alert msg={msg.text} type={msg.type} />}
-        <div className="form-row cols-3">
-          <div className="form-group">
-            <label>First name</label>
-            <input placeholder="e.g. Jamie" value={first} onChange={e => setFirst(e.target.value)} />
+      {user && (
+        <div className="card" style={{ marginBottom: '1rem' }}>
+          <h2 style={{ marginBottom: '1rem' }}>Add player</h2>
+          {msg && <Alert msg={msg.text} type={msg.type} />}
+          <div className="form-row cols-3">
+            <div className="form-group">
+              <label>First name</label>
+              <input placeholder="e.g. Jamie" value={first} onChange={e => setFirst(e.target.value)} />
+            </div>
+            <div className="form-group">
+              <label>Last name</label>
+              <input placeholder="e.g. Campbell" value={last} onChange={e => setLast(e.target.value)} />
+            </div>
+            <div className="form-group">
+              <label>Skill level</label>
+              <select value={skill} onChange={e => setSkill(e.target.value)}>
+                <option>Beginner</option><option>Intermediate</option><option>Advanced</option>
+              </select>
+            </div>
           </div>
-          <div className="form-group">
-            <label>Last name</label>
-            <input placeholder="e.g. Campbell" value={last} onChange={e => setLast(e.target.value)} />
-          </div>
-          <div className="form-group">
-            <label>Skill level</label>
-            <select value={skill} onChange={e => setSkill(e.target.value)}>
-              <option>Beginner</option><option>Intermediate</option><option>Advanced</option>
-            </select>
-          </div>
+          <button className="btn btn-primary" onClick={add} disabled={saving}>
+            {saving ? <span className="spinner"></span> : 'Add player'}
+          </button>
         </div>
-        <button className="btn btn-primary" onClick={add} disabled={saving}>
-          {saving ? <span className="spinner"></span> : 'Add player'}
-        </button>
-      </div>
+      )}
 
       <div className="card">
-        <h2 style={{ marginBottom: '1rem' }}>Registered players ({players.length})</h2>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+          <h2 style={{ margin: 0 }}>Registered players ({players.length})</h2>
+          {!user && <span style={{ fontSize: 12, color: 'var(--muted)' }}>Sign in as admin to add or remove players</span>}
+        </div>
         {players.length === 0
-          ? <div className="empty">No players yet. Add your members above.</div>
+          ? <div className="empty">No players registered yet.</div>
           : <table>
-              <thead><tr><th>#</th><th>Name</th><th>Skill level</th><th>Action</th></tr></thead>
+              <thead>
+                <tr>
+                  <th>#</th><th>Name</th><th>Skill level</th>
+                  {user && <th>Action</th>}
+                </tr>
+              </thead>
               <tbody>
                 {players.map((p, i) => (
                   <tr key={p.id}>
                     <td style={{ color: 'var(--muted)' }}>{i + 1}</td>
                     <td style={{ fontWeight: 500 }}>{p.first_name} {p.last_name}</td>
                     <td><span className="badge badge-scheduled">{p.skill_level}</span></td>
-                    <td><button className="btn btn-sm btn-danger" onClick={() => remove(p.id)}>Remove</button></td>
+                    {user && <td><button className="btn btn-sm btn-danger" onClick={() => remove(p.id)}>Remove</button></td>}
                   </tr>
                 ))}
               </tbody>
@@ -508,7 +522,7 @@ function LeaderboardTab({ fixtures, players }) {
       <div className="filter-bar">
         <select value={typeF} onChange={e => setTypeF(e.target.value)}>
           <option value="">All types</option>
-          <option>Singles</option><option>Doubles</option><option>Mixed</option>
+          {MATCH_TYPES.map(t => <option key={t}>{t}</option>)}
         </select>
       </div>
       <div className="card">
@@ -547,22 +561,18 @@ export default function Home() {
   const [fixtures, setFixtures] = useState([])
   const [loading, setLoading] = useState(true)
 
-  // Handle Supabase auth — including invite token in URL hash
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         setUser(session.user)
         if (typeof window !== 'undefined') {
           const hash = window.location.hash
-          if (hash.includes('type=invite') || hash.includes('type=recovery')) {
-            setNeedsPassword(true)
-          }
+          if (hash.includes('type=invite') || hash.includes('type=recovery')) setNeedsPassword(true)
           window.history.replaceState(null, '', window.location.pathname)
         }
       }
       setAuthReady(true)
     })
-
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null)
     })
@@ -593,19 +603,18 @@ export default function Home() {
     setTab('fixtures')
   }
 
-  // Public tabs always visible; admin tabs only when signed in
   const publicTabs = [
     { id: 'fixtures',    label: 'Fixtures & Results' },
     { id: 'leaderboard', label: 'Leaderboard' },
+    { id: 'players',     label: 'Players' },
   ]
   const adminTabs = [
-    { id: 'record',  label: 'Record match' },
-    { id: 'players', label: 'Players' },
+    { id: 'record', label: 'Record match' },
   ]
   const tabs = user ? [...publicTabs, ...adminTabs] : publicTabs
 
   useEffect(() => {
-    if (!user && (tab === 'record' || tab === 'players')) setTab('fixtures')
+    if (!user && tab === 'record') setTab('fixtures')
   }, [user, tab])
 
   if (!authReady) return null
@@ -633,19 +642,15 @@ export default function Home() {
           ? <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--muted)' }}><span className="spinner"></span></div>
           : tab === 'fixtures'    ? <FixturesTab fixtures={fixtures} players={players} />
           : tab === 'leaderboard' ? <LeaderboardTab fixtures={fixtures} players={players} />
+          : tab === 'players'     ? <PlayersTab players={players} onRefresh={fetchAll} user={user} />
           : tab === 'record'      ? <RecordTab fixtures={fixtures} players={players} onRefresh={fetchAll} />
-          : tab === 'players'     ? <PlayersTab players={players} onRefresh={fetchAll} />
           : null
         }
       </main>
 
       {showLogin && (
-        <LoginModal
-          onClose={() => setShowLogin(false)}
-          onLogin={() => setShowLogin(false)}
-        />
+        <LoginModal onClose={() => setShowLogin(false)} onLogin={() => setShowLogin(false)} />
       )}
-
       {needsPassword && (
         <SetPasswordModal onDone={() => setNeedsPassword(false)} />
       )}
