@@ -15,7 +15,8 @@ const MATCH_TYPES = [
   "Hybrid",
 ]
 
-const IS_DOUBLES = (t) => ["Men's Doubles", "Women's Doubles", "Mixed Doubles", "Hybrid"].includes(t)
+const DOUBLES_TYPES = ["Men's Doubles", "Women's Doubles", "Mixed Doubles", "Hybrid"]
+const IS_DOUBLES = (t) => DOUBLES_TYPES.includes(t)
 const typeToBadge = (t) => t.toLowerCase().replace(/[^a-z]+/g, '-').replace(/-$/, '')
 
 function setWinner(sets) {
@@ -160,10 +161,29 @@ function Header({ user, onLoginClick, onLogout }) {
 }
 
 // ─── Fixtures Tab ────────────────────────────────────────────
-function FixturesTab({ fixtures, players }) {
+function FixturesTab({ fixtures, players, teams }) {
   const [typeF, setTypeF] = useState('')
   const [statusF, setStatusF] = useState('')
   const playerMap = Object.fromEntries(players.map(p => [p.id, p]))
+  const teamMap   = Object.fromEntries(teams.map(t => [t.id, t]))
+
+  const getMatchLabel = (f) => {
+    if (f.team1_id && f.team2_id) {
+      const t1 = teamMap[f.team1_id], t2 = teamMap[f.team2_id]
+      return {
+        t1: t1 ? t1.team_name : '?',
+        t2: t2 ? t2.team_name : '?',
+        sub1: t1 ? teamLabel(playerMap[t1.player_a], playerMap[t1.player_b]) : '',
+        sub2: t2 ? teamLabel(playerMap[t2.player_a], playerMap[t2.player_b]) : '',
+      }
+    }
+    return {
+      t1: teamLabel(playerMap[f.p1a], playerMap[f.p1b]),
+      t2: teamLabel(playerMap[f.p2a], playerMap[f.p2b]),
+      sub1: null, sub2: null,
+    }
+  }
+
   const filtered = fixtures
     .filter(f => (!typeF || f.match_type === typeF) && (!statusF || f.status === statusF))
     .sort((a, b) => a.match_date > b.match_date ? 1 : -1)
@@ -187,9 +207,7 @@ function FixturesTab({ fixtures, players }) {
               <thead><tr><th>Date</th><th>Type</th><th>Match</th><th>Score</th><th>Status</th></tr></thead>
               <tbody>
                 {filtered.map(f => {
-                  const p1a = playerMap[f.p1a], p1b = playerMap[f.p1b]
-                  const p2a = playerMap[f.p2a], p2b = playerMap[f.p2b]
-                  const t1 = teamLabel(p1a, p1b), t2 = teamLabel(p2a, p2b)
+                  const { t1, t2, sub1, sub2 } = getMatchLabel(f)
                   const win = setWinner(f.sets)
                   const d = new Date(f.match_date + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
                   return (
@@ -197,10 +215,13 @@ function FixturesTab({ fixtures, players }) {
                       <td style={{ whiteSpace: 'nowrap' }}>{d}</td>
                       <td><span className={`badge badge-${typeToBadge(f.match_type)}`}>{f.match_type}</span></td>
                       <td>
-                        <span style={{ fontWeight: win === 'team1' ? 600 : 400 }}>{t1}</span>
-                        <span className="vs">vs</span>
-                        <span style={{ fontWeight: win === 'team2' ? 600 : 400 }}>{t2}</span>
-                        {f.venue && <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{f.venue}</div>}
+                        <div>
+                          <span style={{ fontWeight: win === 'team1' ? 600 : 400 }}>{t1}</span>
+                          <span className="vs">vs</span>
+                          <span style={{ fontWeight: win === 'team2' ? 600 : 400 }}>{t2}</span>
+                        </div>
+                        {sub1 && <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{sub1} vs {sub2}</div>}
+                        {f.venue && <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 1 }}>{f.venue}</div>}
                       </td>
                       <td style={{ fontFamily: 'DM Mono, monospace', fontSize: 12 }}>
                         {f.sets && f.sets.length > 0
@@ -223,13 +244,15 @@ function FixturesTab({ fixtures, players }) {
 }
 
 // ─── Score Modal ─────────────────────────────────────────────
-function ScoreModal({ fixture, players, onSave, onClose }) {
+function ScoreModal({ fixture, players, teams, onSave, onClose }) {
   const [sets, setSets] = useState([{ p1: '', p2: '' }])
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
   const playerMap = Object.fromEntries(players.map(p => [p.id, p]))
-  const t1 = teamLabel(playerMap[fixture.p1a], playerMap[fixture.p1b])
-  const t2 = teamLabel(playerMap[fixture.p2a], playerMap[fixture.p2b])
+  const teamMap   = Object.fromEntries(teams.map(t => [t.id, t]))
+
+  const label1 = fixture.team1_id ? (teamMap[fixture.team1_id]?.team_name || '?') : teamLabel(playerMap[fixture.p1a], playerMap[fixture.p1b])
+  const label2 = fixture.team2_id ? (teamMap[fixture.team2_id]?.team_name || '?') : teamLabel(playerMap[fixture.p2a], playerMap[fixture.p2b])
 
   const updateSet = (i, side, val) => {
     const next = [...sets]; next[i] = { ...next[i], [side]: val }; setSets(next)
@@ -257,14 +280,14 @@ function ScoreModal({ fixture, players, onSave, onClose }) {
       <div className="modal">
         <h2 style={{ marginBottom: 8 }}>Enter match result</h2>
         <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 16 }}>
-          <strong>{t1}</strong> vs <strong>{t2}</strong> · {fixture.match_type}
+          <strong>{label1}</strong> vs <strong>{label2}</strong> · {fixture.match_type}
         </p>
         {err && <Alert msg={err} type="error" />}
         <div style={{ display: 'grid', gridTemplateColumns: '60px 1fr 32px 1fr', gap: 8, alignItems: 'center', marginBottom: 8 }}>
           <div style={{ fontSize: 11, color: 'var(--muted)' }}>Set</div>
-          <div style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'center' }}>{t1.split(' ')[0]}</div>
+          <div style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'center' }}>{label1.split(' ')[0]}</div>
           <div></div>
-          <div style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'center' }}>{t2.split(' ')[0]}</div>
+          <div style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'center' }}>{label2.split(' ')[0]}</div>
         </div>
         {sets.map((s, i) => (
           <div key={i} style={{ display: 'grid', gridTemplateColumns: '60px 1fr 32px 1fr auto', gap: 8, alignItems: 'center', marginBottom: 8 }}>
@@ -289,40 +312,204 @@ function ScoreModal({ fixture, players, onSave, onClose }) {
   )
 }
 
+// ─── Teams Tab (public view, admin controls) ──────────────────
+function TeamsTab({ teams, players, onRefresh, user }) {
+  const [teamName, setTeamName] = useState('')
+  const [matchType, setMatchType] = useState("Men's Doubles")
+  const [playerA, setPlayerA] = useState('')
+  const [playerB, setPlayerB] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [msg, setMsg] = useState(null)
+
+  const playerMap = Object.fromEntries(players.map(p => [p.id, p]))
+  const opts = players.map(p => <option key={p.id} value={p.id}>{p.first_name} {p.last_name}</option>)
+
+  const add = async () => {
+    if (!teamName.trim()) { setMsg({ text: 'Enter a team name.', type: 'error' }); return }
+    if (!playerA || !playerB) { setMsg({ text: 'Select both players.', type: 'error' }); return }
+    if (playerA === playerB) { setMsg({ text: 'Players must be different.', type: 'error' }); return }
+    setSaving(true); setMsg(null)
+    const { error } = await supabase.from('teams').insert({
+      team_name: teamName.trim(), match_type: matchType,
+      player_a: playerA, player_b: playerB
+    })
+    setSaving(false)
+    if (error) { setMsg({ text: error.message, type: 'error' }); return }
+    setTeamName(''); setPlayerA(''); setPlayerB('')
+    setMsg({ text: 'Team registered!', type: 'success' })
+    onRefresh()
+  }
+
+  const remove = async (id) => {
+    if (!confirm('Remove this team?')) return
+    await supabase.from('teams').delete().eq('id', id)
+    onRefresh()
+  }
+
+  // Group teams by match type for display
+  const grouped = DOUBLES_TYPES.reduce((acc, type) => {
+    acc[type] = teams.filter(t => t.match_type === type)
+    return acc
+  }, {})
+
+  return (
+    <>
+      {user && (
+        <div className="card" style={{ marginBottom: '1rem' }}>
+          <h2 style={{ marginBottom: '1rem' }}>Register a team</h2>
+          {msg && <Alert msg={msg.text} type={msg.type} />}
+          <div className="form-row cols-2">
+            <div className="form-group">
+              <label>Team name</label>
+              <input placeholder="e.g. The Smashers" value={teamName} onChange={e => setTeamName(e.target.value)} />
+            </div>
+            <div className="form-group">
+              <label>Category</label>
+              <select value={matchType} onChange={e => setMatchType(e.target.value)}>
+                {DOUBLES_TYPES.map(t => <option key={t}>{t}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="form-row cols-2">
+            <div className="form-group">
+              <label>Player A</label>
+              <select value={playerA} onChange={e => setPlayerA(e.target.value)}>
+                <option value="">Select…</option>{opts}
+              </select>
+            </div>
+            <div className="form-group">
+              <label>Player B</label>
+              <select value={playerB} onChange={e => setPlayerB(e.target.value)}>
+                <option value="">Select…</option>{opts}
+              </select>
+            </div>
+          </div>
+          <button className="btn btn-primary" onClick={add} disabled={saving}>
+            {saving ? <span className="spinner"></span> : 'Register team'}
+          </button>
+        </div>
+      )}
+
+      {/* Grouped team cards */}
+      {DOUBLES_TYPES.map(type => {
+        const typeTeams = grouped[type]
+        if (typeTeams.length === 0) return null
+        return (
+          <div key={type} className="card" style={{ marginBottom: '1rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: '1rem' }}>
+              <h2 style={{ margin: 0 }}>{type}</h2>
+              <span className={`badge badge-${typeToBadge(type)}`}>{typeTeams.length} team{typeTeams.length > 1 ? 's' : ''}</span>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10 }}>
+              {typeTeams.map(t => (
+                <div key={t.id} style={{
+                  background: 'var(--gray-lt)', borderRadius: 8, padding: '12px 14px',
+                  border: '0.5px solid var(--border)', position: 'relative'
+                }}>
+                  <div style={{ fontWeight: 500, fontSize: 14, marginBottom: 4 }}>{t.team_name}</div>
+                  <div style={{ fontSize: 12, color: 'var(--muted)' }}>
+                    {pName(playerMap[t.player_a])} &amp; {pName(playerMap[t.player_b])}
+                  </div>
+                  {user && (
+                    <button className="btn btn-sm btn-danger"
+                      style={{ position: 'absolute', top: 10, right: 10, padding: '3px 8px', fontSize: 11 }}
+                      onClick={() => remove(t.id)}>Remove</button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      })}
+
+      {teams.length === 0 && (
+        <div className="card">
+          <div className="empty">
+            {user ? 'No teams registered yet. Add teams above.' : 'No teams registered yet. Sign in as admin to add teams.'}
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
 // ─── Record Tab (admin only) ──────────────────────────────────
-function RecordTab({ fixtures, players, onRefresh }) {
+function RecordTab({ fixtures, players, teams, onRefresh }) {
   const [type, setType] = useState("Men's Singles")
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
   const [venue, setVenue] = useState('')
+  // Singles: p1a, p2a
   const [p1a, setP1a] = useState('')
-  const [p1b, setP1b] = useState('')
   const [p2a, setP2a] = useState('')
-  const [p2b, setP2b] = useState('')
+  // Doubles: pick from registered teams
+  const [team1Id, setTeam1Id] = useState('')
+  const [team2Id, setTeam2Id] = useState('')
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState(null)
   const [scoreFixture, setScoreFixture] = useState(null)
 
-  const opts = players.map(p => <option key={p.id} value={p.id}>{p.first_name} {p.last_name}</option>)
+  const playerOpts = players.map(p => <option key={p.id} value={p.id}>{p.first_name} {p.last_name}</option>)
+  const teamMap = Object.fromEntries(teams.map(t => [t.id, t]))
+  const playerMap = Object.fromEntries(players.map(p => [p.id, p]))
+
+  // Teams filtered to current match type
+  const eligibleTeams = teams.filter(t => t.match_type === type)
+  const teamOpts = eligibleTeams.map(t => (
+    <option key={t.id} value={t.id}>
+      {t.team_name} ({pName(playerMap[t.player_a])} &amp; {pName(playerMap[t.player_b])})
+    </option>
+  ))
+
+  // Reset team selection when type changes
+  useEffect(() => { setTeam1Id(''); setTeam2Id(''); setP1a(''); setP2a('') }, [type])
 
   const addFixture = async () => {
-    if (!date || !p1a || !p2a) { setMsg({ text: 'Please fill in date and players.', type: 'error' }); return }
-    if (p1a === p2a) { setMsg({ text: 'Team 1 and Team 2 cannot have the same player.', type: 'error' }); return }
-    setSaving(true); setMsg(null)
-    const row = {
-      match_type: type, match_date: date, venue: venue || null, status: 'Scheduled',
-      p1a, p1b: IS_DOUBLES(type) ? p1b : null,
-      p2a, p2b: IS_DOUBLES(type) ? p2b : null
+    if (!date) { setMsg({ text: 'Please select a date.', type: 'error' }); return }
+
+    if (IS_DOUBLES(type)) {
+      if (!team1Id || !team2Id) { setMsg({ text: 'Please select both teams.', type: 'error' }); return }
+      if (team1Id === team2Id) { setMsg({ text: 'Teams must be different.', type: 'error' }); return }
+      if (eligibleTeams.length < 2) {
+        setMsg({ text: `Register at least 2 ${type} teams in the Teams tab first.`, type: 'error' }); return
+      }
+      const t1 = teamMap[team1Id], t2 = teamMap[team2Id]
+      setSaving(true); setMsg(null)
+      const row = {
+        match_type: type, match_date: date, venue: venue || null, status: 'Scheduled',
+        team1_id: team1Id, team2_id: team2Id,
+        p1a: t1.player_a, p1b: t1.player_b,
+        p2a: t2.player_a, p2b: t2.player_b,
+      }
+      const { error } = await supabase.from('fixtures').insert(row)
+      setSaving(false)
+      if (error) { setMsg({ text: error.message, type: 'error' }); return }
+    } else {
+      if (!p1a || !p2a) { setMsg({ text: 'Please select both players.', type: 'error' }); return }
+      if (p1a === p2a) { setMsg({ text: 'Players must be different.', type: 'error' }); return }
+      setSaving(true); setMsg(null)
+      const row = {
+        match_type: type, match_date: date, venue: venue || null, status: 'Scheduled',
+        p1a, p2a, p1b: null, p2b: null, team1_id: null, team2_id: null,
+      }
+      const { error } = await supabase.from('fixtures').insert(row)
+      setSaving(false)
+      if (error) { setMsg({ text: error.message, type: 'error' }); return }
     }
-    const { error } = await supabase.from('fixtures').insert(row)
-    setSaving(false)
-    if (error) { setMsg({ text: error.message, type: 'error' }); return }
+
     setMsg({ text: 'Fixture added!', type: 'success' })
-    setP1a(''); setP1b(''); setP2a(''); setP2b(''); setVenue('')
+    setTeam1Id(''); setTeam2Id(''); setP1a(''); setP2a(''); setVenue('')
     onRefresh()
   }
 
+  const getFixtureLabel = (f) => {
+    if (f.team1_id && f.team2_id) {
+      const t1 = teamMap[f.team1_id], t2 = teamMap[f.team2_id]
+      return `${t1 ? t1.team_name : '?'} vs ${t2 ? t2.team_name : '?'}`
+    }
+    return `${teamLabel(playerMap[f.p1a], playerMap[f.p1b])} vs ${teamLabel(playerMap[f.p2a], playerMap[f.p2b])}`
+  }
+
   const pending = fixtures.filter(f => f.status === 'Scheduled').sort((a, b) => a.match_date > b.match_date ? 1 : -1)
-  const playerMap = Object.fromEntries(players.map(p => [p.id, p]))
 
   return (
     <>
@@ -341,28 +528,46 @@ function RecordTab({ fixtures, players, onRefresh }) {
             <input type="date" value={date} onChange={e => setDate(e.target.value)} />
           </div>
         </div>
-        <div className="form-row cols-2">
-          <div className="form-group">
-            <label>{IS_DOUBLES(type) ? 'Team 1 – Player A' : 'Player 1'}</label>
-            <select value={p1a} onChange={e => setP1a(e.target.value)}><option value="">Select…</option>{opts}</select>
-          </div>
-          {IS_DOUBLES(type) && (
-            <div className="form-group">
-              <label>Team 1 – Player B</label>
-              <select value={p1b} onChange={e => setP1b(e.target.value)}><option value="">Select…</option>{opts}</select>
+
+        {IS_DOUBLES(type) ? (
+          <>
+            {eligibleTeams.length < 2 && (
+              <div className="alert alert-error" style={{ marginBottom: 12 }}>
+                No {type} teams registered yet. Go to the <strong>Teams</strong> tab to register teams first.
+              </div>
+            )}
+            <div className="form-row cols-2">
+              <div className="form-group">
+                <label>Team 1</label>
+                <select value={team1Id} onChange={e => setTeam1Id(e.target.value)}>
+                  <option value="">Select team…</option>{teamOpts}
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Team 2</label>
+                <select value={team2Id} onChange={e => setTeam2Id(e.target.value)}>
+                  <option value="">Select team…</option>{teamOpts}
+                </select>
+              </div>
             </div>
-          )}
-          <div className="form-group">
-            <label>{IS_DOUBLES(type) ? 'Team 2 – Player A' : 'Player 2'}</label>
-            <select value={p2a} onChange={e => setP2a(e.target.value)}><option value="">Select…</option>{opts}</select>
-          </div>
-          {IS_DOUBLES(type) && (
+          </>
+        ) : (
+          <div className="form-row cols-2">
             <div className="form-group">
-              <label>Team 2 – Player B</label>
-              <select value={p2b} onChange={e => setP2b(e.target.value)}><option value="">Select…</option>{opts}</select>
+              <label>Player 1</label>
+              <select value={p1a} onChange={e => setP1a(e.target.value)}>
+                <option value="">Select…</option>{playerOpts}
+              </select>
             </div>
-          )}
-        </div>
+            <div className="form-group">
+              <label>Player 2</label>
+              <select value={p2a} onChange={e => setP2a(e.target.value)}>
+                <option value="">Select…</option>{playerOpts}
+              </select>
+            </div>
+          </div>
+        )}
+
         <div className="form-group">
           <label>Venue / court (optional)</label>
           <input type="text" placeholder="e.g. EK Sports Centre Court 2" value={venue} onChange={e => setVenue(e.target.value)} />
@@ -380,14 +585,12 @@ function RecordTab({ fixtures, players, onRefresh }) {
               <thead><tr><th>Date</th><th>Type</th><th>Match</th><th>Action</th></tr></thead>
               <tbody>
                 {pending.map(f => {
-                  const t1 = teamLabel(playerMap[f.p1a], playerMap[f.p1b])
-                  const t2 = teamLabel(playerMap[f.p2a], playerMap[f.p2b])
                   const d = new Date(f.match_date + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
                   return (
                     <tr key={f.id}>
                       <td>{d}</td>
                       <td><span className={`badge badge-${typeToBadge(f.match_type)}`}>{f.match_type}</span></td>
-                      <td>{t1} <span className="vs">vs</span> {t2}</td>
+                      <td style={{ fontSize: 13 }}>{getFixtureLabel(f)}</td>
                       <td><button className="btn btn-sm btn-primary" onClick={() => setScoreFixture(f)}>Enter score</button></td>
                     </tr>
                   )
@@ -399,7 +602,7 @@ function RecordTab({ fixtures, players, onRefresh }) {
 
       {scoreFixture && (
         <ScoreModal
-          fixture={scoreFixture} players={players}
+          fixture={scoreFixture} players={players} teams={teams}
           onSave={() => { setScoreFixture(null); onRefresh() }}
           onClose={() => setScoreFixture(null)}
         />
@@ -460,7 +663,6 @@ function PlayersTab({ players, onRefresh, user }) {
           </button>
         </div>
       )}
-
       <div className="card">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
           <h2 style={{ margin: 0 }}>Registered players ({players.length})</h2>
@@ -470,10 +672,7 @@ function PlayersTab({ players, onRefresh, user }) {
           ? <div className="empty">No players registered yet.</div>
           : <table>
               <thead>
-                <tr>
-                  <th>#</th><th>Name</th><th>Skill level</th>
-                  {user && <th>Action</th>}
-                </tr>
+                <tr><th>#</th><th>Name</th><th>Skill level</th>{user && <th>Action</th>}</tr>
               </thead>
               <tbody>
                 {players.map((p, i) => (
@@ -493,22 +692,55 @@ function PlayersTab({ players, onRefresh, user }) {
 }
 
 // ─── Leaderboard Tab ─────────────────────────────────────────
-function LeaderboardTab({ fixtures, players }) {
+function LeaderboardTab({ fixtures, players, teams }) {
+  const [view, setView] = useState('players')  // 'players' | 'teams'
   const [typeF, setTypeF] = useState('')
   const medals = ['🥇', '🥈', '🥉']
-  const played = fixtures.filter(f => f.status === 'Played' && (!typeF || f.match_type === typeF))
-  const totals = Object.fromEntries(players.map(p => [p.id, { id: p.id, name: `${p.first_name} ${p.last_name}`, w: 0, l: 0, played: 0 }]))
 
-  played.forEach(f => {
+  const playerMap = Object.fromEntries(players.map(p => [p.id, p]))
+  const teamMap   = Object.fromEntries(teams.map(t => [t.id, t]))
+
+  // ── Player standings ──
+  const playedFx = fixtures.filter(f => f.status === 'Played' && (!typeF || f.match_type === typeF))
+  const playerTotals = Object.fromEntries(players.map(p => [p.id, { id: p.id, name: pName(p), w: 0, l: 0, played: 0 }]))
+
+  playedFx.forEach(f => {
     const win = setWinner(f.sets)
     if (!win) return
     const winners = [win === 'team1' ? f.p1a : f.p2a, win === 'team1' ? f.p1b : f.p2b].filter(Boolean)
     const losers  = [win === 'team1' ? f.p2a : f.p1a, win === 'team1' ? f.p2b : f.p1b].filter(Boolean)
-    winners.forEach(id => { if (totals[id]) { totals[id].w++; totals[id].played++ } })
-    losers.forEach(id =>  { if (totals[id]) { totals[id].l++; totals[id].played++ } })
+    winners.forEach(id => { if (playerTotals[id]) { playerTotals[id].w++; playerTotals[id].played++ } })
+    losers.forEach(id =>  { if (playerTotals[id]) { playerTotals[id].l++; playerTotals[id].played++ } })
   })
 
-  const sorted = Object.values(totals).filter(x => x.played > 0)
+  const sortedPlayers = Object.values(playerTotals).filter(x => x.played > 0)
+    .sort((a, b) => b.w - a.w || (b.w / (b.played || 1)) - (a.w / (a.played || 1)))
+
+  // ── Team standings ──
+  const doublesPlayed = fixtures.filter(f =>
+    f.status === 'Played' && IS_DOUBLES(f.match_type) &&
+    f.team1_id && f.team2_id &&
+    (!typeF || f.match_type === typeF)
+  )
+
+  const teamTotals = Object.fromEntries(teams.map(t => [t.id, {
+    id: t.id,
+    name: t.team_name,
+    type: t.match_type,
+    players: `${pName(playerMap[t.player_a])} & ${pName(playerMap[t.player_b])}`,
+    w: 0, l: 0, played: 0
+  }]))
+
+  doublesPlayed.forEach(f => {
+    const win = setWinner(f.sets)
+    if (!win) return
+    const winnerId = win === 'team1' ? f.team1_id : f.team2_id
+    const loserId  = win === 'team1' ? f.team2_id : f.team1_id
+    if (teamTotals[winnerId]) { teamTotals[winnerId].w++; teamTotals[winnerId].played++ }
+    if (teamTotals[loserId])  { teamTotals[loserId].l++;  teamTotals[loserId].played++ }
+  })
+
+  const sortedTeams = Object.values(teamTotals).filter(x => x.played > 0)
     .sort((a, b) => b.w - a.w || (b.w / (b.played || 1)) - (a.w / (a.played || 1)))
 
   return (
@@ -518,34 +750,69 @@ function LeaderboardTab({ fixtures, players }) {
         <div className="stat-card"><div className="num">{fixtures.filter(f => f.status === 'Played').length}</div><div className="lbl">Matches played</div></div>
         <div className="stat-card"><div className="num">{fixtures.filter(f => f.status === 'Scheduled').length}</div><div className="lbl">Upcoming</div></div>
         <div className="stat-card"><div className="num">{players.length}</div><div className="lbl">Players</div></div>
+        <div className="stat-card"><div className="num">{teams.length}</div><div className="lbl">Teams</div></div>
       </div>
+
+      {/* View switcher */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: '1rem' }}>
+        <button className={`tab${view === 'players' ? ' active' : ''}`} onClick={() => setView('players')}>Player standings</button>
+        <button className={`tab${view === 'teams' ? ' active' : ''}`} onClick={() => setView('teams')}>Team standings</button>
+      </div>
+
       <div className="filter-bar">
         <select value={typeF} onChange={e => setTypeF(e.target.value)}>
           <option value="">All types</option>
-          {MATCH_TYPES.map(t => <option key={t}>{t}</option>)}
+          {(view === 'teams' ? DOUBLES_TYPES : MATCH_TYPES).map(t => <option key={t}>{t}</option>)}
         </select>
       </div>
-      <div className="card">
-        <h2 style={{ marginBottom: '1rem' }}>Player standings</h2>
-        {sorted.length === 0
-          ? <div className="empty">No results recorded yet.</div>
-          : <table>
-              <thead><tr><th>Rank</th><th>Player</th><th>Played</th><th>Won</th><th>Lost</th><th>Win %</th></tr></thead>
-              <tbody>
-                {sorted.map((p, i) => (
-                  <tr key={p.id}>
-                    <td style={{ fontSize: 16 }}>{medals[i] || i + 1}</td>
-                    <td style={{ fontWeight: 500 }}>{p.name}</td>
-                    <td>{p.played}</td>
-                    <td style={{ color: 'var(--green)', fontWeight: 600 }}>{p.w}</td>
-                    <td>{p.l}</td>
-                    <td>{p.played > 0 ? Math.round(p.w / p.played * 100) : 0}%</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-        }
-      </div>
+
+      {view === 'players' ? (
+        <div className="card">
+          <h2 style={{ marginBottom: '1rem' }}>Player standings</h2>
+          {sortedPlayers.length === 0
+            ? <div className="empty">No results recorded yet.</div>
+            : <table>
+                <thead><tr><th>Rank</th><th>Player</th><th>Played</th><th>Won</th><th>Lost</th><th>Win %</th></tr></thead>
+                <tbody>
+                  {sortedPlayers.map((p, i) => (
+                    <tr key={p.id}>
+                      <td style={{ fontSize: 16 }}>{medals[i] || i + 1}</td>
+                      <td style={{ fontWeight: 500 }}>{p.name}</td>
+                      <td>{p.played}</td>
+                      <td style={{ color: 'var(--green)', fontWeight: 600 }}>{p.w}</td>
+                      <td>{p.l}</td>
+                      <td>{p.played > 0 ? Math.round(p.w / p.played * 100) : 0}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+          }
+        </div>
+      ) : (
+        <div className="card">
+          <h2 style={{ marginBottom: '1rem' }}>Team standings</h2>
+          {sortedTeams.length === 0
+            ? <div className="empty">No team results recorded yet.</div>
+            : <table>
+                <thead><tr><th>Rank</th><th>Team</th><th>Category</th><th>Players</th><th>Played</th><th>Won</th><th>Lost</th><th>Win %</th></tr></thead>
+                <tbody>
+                  {sortedTeams.map((t, i) => (
+                    <tr key={t.id}>
+                      <td style={{ fontSize: 16 }}>{medals[i] || i + 1}</td>
+                      <td style={{ fontWeight: 500 }}>{t.name}</td>
+                      <td><span className={`badge badge-${typeToBadge(t.type)}`}>{t.type}</span></td>
+                      <td style={{ fontSize: 12, color: 'var(--muted)' }}>{t.players}</td>
+                      <td>{t.played}</td>
+                      <td style={{ color: 'var(--green)', fontWeight: 600 }}>{t.w}</td>
+                      <td>{t.l}</td>
+                      <td>{t.played > 0 ? Math.round(t.w / t.played * 100) : 0}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+          }
+        </div>
+      )}
     </>
   )
 }
@@ -559,6 +826,7 @@ export default function Home() {
   const [tab, setTab] = useState('fixtures')
   const [players, setPlayers] = useState([])
   const [fixtures, setFixtures] = useState([])
+  const [teams, setTeams] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -581,10 +849,11 @@ export default function Home() {
 
   const fetchAll = useCallback(async () => {
     setLoading(true)
-    const [{ data: pl }, { data: fx }, { data: rs }] = await Promise.all([
+    const [{ data: pl }, { data: fx }, { data: rs }, { data: tm }] = await Promise.all([
       supabase.from('players').select('*').order('last_name'),
       supabase.from('fixtures').select('*').order('match_date'),
-      supabase.from('results').select('*').order('set_number')
+      supabase.from('results').select('*').order('set_number'),
+      supabase.from('teams').select('*').order('team_name'),
     ])
     const fxWithSets = (fx || []).map(f => ({
       ...f,
@@ -592,6 +861,7 @@ export default function Home() {
     }))
     setPlayers(pl || [])
     setFixtures(fxWithSets)
+    setTeams(tm || [])
     setLoading(false)
   }, [])
 
@@ -606,6 +876,7 @@ export default function Home() {
   const publicTabs = [
     { id: 'fixtures',    label: 'Fixtures & Results' },
     { id: 'leaderboard', label: 'Leaderboard' },
+    { id: 'teams',       label: 'Teams' },
     { id: 'players',     label: 'Players' },
   ]
   const adminTabs = [
@@ -640,10 +911,11 @@ export default function Home() {
 
         {loading
           ? <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--muted)' }}><span className="spinner"></span></div>
-          : tab === 'fixtures'    ? <FixturesTab fixtures={fixtures} players={players} />
-          : tab === 'leaderboard' ? <LeaderboardTab fixtures={fixtures} players={players} />
+          : tab === 'fixtures'    ? <FixturesTab fixtures={fixtures} players={players} teams={teams} />
+          : tab === 'leaderboard' ? <LeaderboardTab fixtures={fixtures} players={players} teams={teams} />
+          : tab === 'teams'       ? <TeamsTab teams={teams} players={players} onRefresh={fetchAll} user={user} />
           : tab === 'players'     ? <PlayersTab players={players} onRefresh={fetchAll} user={user} />
-          : tab === 'record'      ? <RecordTab fixtures={fixtures} players={players} onRefresh={fetchAll} />
+          : tab === 'record'      ? <RecordTab fixtures={fixtures} players={players} teams={teams} onRefresh={fetchAll} />
           : null
         }
       </main>
