@@ -13,9 +13,20 @@ const MATCH_TYPES = [
   "Women's Doubles",
   "Mixed Doubles",
   "Hybrid",
+  "Men's Doubles Intermediate",
+  "Women's Doubles Intermediate",
+  "Mixed Doubles Intermediate",
 ]
 
-const DOUBLES_TYPES = ["Men's Doubles", "Women's Doubles", "Mixed Doubles", "Hybrid"]
+const DOUBLES_TYPES = [
+  "Men's Doubles",
+  "Women's Doubles",
+  "Mixed Doubles",
+  "Hybrid",
+  "Men's Doubles Intermediate",
+  "Women's Doubles Intermediate",
+  "Mixed Doubles Intermediate",
+]
 const IS_DOUBLES = (t) => DOUBLES_TYPES.includes(t)
 const typeToBadge = (t) => t.toLowerCase().replace(/[^a-z]+/g, '-').replace(/-$/, '')
 
